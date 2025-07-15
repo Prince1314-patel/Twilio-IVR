@@ -54,3 +54,14 @@ python make_call.py
 python make_call.py
 clear
 git init
+git add .
+git commit -m "first commit"
+git remote add origin https://github.com/Prince1314-patel/Twilio-IVR.git
+git push -u origin main
+git remote -v
+git status
+git branch
+git branch -m Main
+clear
+git push -u origin main
+git push -u origin Main
