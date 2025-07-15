@@ -68,6 +68,11 @@ uvicorn answer_phone:app --reload
 
 The FastAPI server will start on `http://0.0.0.0:8000`.
 
+### 5. Run the ngrok app
+
+```bash
+ngrok.exe http 8000
+```
 ---
 
 ## Usage
