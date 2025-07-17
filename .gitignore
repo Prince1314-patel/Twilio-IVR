@@ -1,4 +1,7 @@
 .env
 ngrok
 venv
-_pycache_
+__pycache__
+agent_cli.log
+agentic_graph/__pycache__
+db_tool/__pycache__
