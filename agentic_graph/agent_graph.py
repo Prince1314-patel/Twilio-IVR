@@ -5,6 +5,12 @@ from langchain_groq import ChatGroq
 from db_tool.db_tools import check_appointment_availability, create_appointment_in_db, get_available_slots_for_date
 import os
 from dotenv import load_dotenv
+from datetime import datetime
+import pytz
+
+india = pytz.timezone('Asia/Kolkata')
+india_time = datetime.now(india)
+print(india_time)
 
 # Load environment variables
 load_dotenv()
@@ -26,6 +32,8 @@ chat_groq = ChatGroq(
 # --- System Prompt for the Agent ---
 SYSTEM_MESSAGE = """
 You are a helpful, friendly AI assistant for appointment scheduling.
+
+This the current date and time in India: {india_time}, whenever user initiates booking request consider this date and time as current date andtime.
 
 STRICT RULES FOR FACTUAL INFORMATION:
 - For ANY information about appointments, availability, booking, or time slots, you MUST ALWAYS use the provided tools. NEVER guess, invent, or assume any appointment-related data.

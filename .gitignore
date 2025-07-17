@@ -5,3 +5,4 @@ __pycache__
 agent_cli.log
 agentic_graph/__pycache__
 db_tool/__pycache__
+appointment_tools.log

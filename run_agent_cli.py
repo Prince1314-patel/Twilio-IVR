@@ -17,7 +17,6 @@ logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(message)s',
     handlers=[
-        logging.FileHandler('agent_cli.log', mode='a', encoding='utf-8'),
         logging.StreamHandler(sys.stdout)
     ]
 )
