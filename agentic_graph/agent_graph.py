@@ -2,6 +2,7 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
 from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage # Import for clarity
 from db_tool.db_tools import check_appointment_availability, create_appointment_in_db, get_available_slots_for_date
 import os
@@ -12,7 +13,8 @@ from zoneinfo import ZoneInfo # Standard library for timezones
 # Load environment variables from .env file
 load_dotenv()
 LANGSMITH_API_KEY = os.getenv('LANGSMITH_API_KEY')
-GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+# GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 # --- LangGraph Store and Checkpointer for Memory ---
 # In production, consider using a persistent store (e.g., RedisStore, SQLliteSaver)
@@ -22,10 +24,16 @@ checkpointer = InMemorySaver()
 
 # --- LLM Model ---
 # Initialize the ChatGroq model once
-chat_groq = ChatGroq(
+# model = ChatGroq(
+#     temperature=0.7,
+#     model_name="meta-llama/llama-4-maverick-17b-128e-instruct",
+#     groq_api_key=GROQ_API_KEY
+# )
+
+model = ChatOpenAI(
     temperature=0.7,
-    model_name="meta-llama/llama-4-maverick-17b-128e-instruct",
-    groq_api_key=GROQ_API_KEY
+    model_name="gpt-4o-mini",
+    openai_api_key=OPENAI_API_KEY
 )
 
 # --- Register Tools ---
@@ -49,6 +57,9 @@ You are a helpful, friendly AI assistant for appointment scheduling.
 
 This is the current date and time in India: {current_kolkata_time}. Whenever the user initiates a booking request, consider this date and time as the current date and time for all comparisons and decisions.
 
+OUTPUT FORMAT:
+- DO NOT USE MARKDOWN FORMAT. ONLY USE PLAIN TEXT. As your response will be used to generate voice messages, it should be in a format that is easy to understand by a text to speech engine.
+
 STRICT RULES FOR FACTUAL INFORMATION:
 - For ANY information about appointments, availability, booking, or time slots, you MUST ALWAYS use the provided tools. NEVER guess, invent, or assume any appointment-related data.
 - If the user asks about available slots, appointment status, or requests a booking, you must call the relevant tool and use its output in your reply.
@@ -58,7 +69,7 @@ STRICT RULES FOR FACTUAL INFORMATION:
 
 BOOKING FLOW INSTRUCTIONS (IMPORTANT!):
 - If the user asks to book an appointment, collect their name, email, appointment type, date, and time.
-- After collecting these details, PROMPT THE USER to briefly describe their problem or symptoms for the doctor. Wait for their response.
+- After collecting these details, PROMPT THE USER to briefly describe their problem or symptoms for the doctor. Wait for their response. If they don't provide any symptoms, just move forward with the booking.
 - After you have all booking details and the symptoms/problem, REPEAT BACK a summary of all details (name, email, appointment type, date, time, and symptoms) and ASK THE USER TO CONFIRM (e.g., "Do you want to confirm this booking?").
 - ONLY IF THE USER CONFIRMS, call the tool to create the appointment in the database (including the symptoms/problem in the 'notes' field).
 - After booking, provide a final summary to the user, including the appointment details and the symptoms they provided.
@@ -97,7 +108,7 @@ def run_agentic_graph(messages: list, thread_id: str) -> str:
     # for dynamic prompt injection if recreating the agent becomes a performance bottleneck.
     # However, for most use cases, this approach is robust and clear.
     current_agent = create_react_agent(
-        chat_groq,
+        model,
         tools=tools,
         prompt=dynamic_system_message, # Pass the dynamically generated system message
         checkpointer=checkpointer,
