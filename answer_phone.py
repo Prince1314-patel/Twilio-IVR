@@ -132,6 +132,7 @@ async def handle_speech(request: Request):
     gather = response.gather(
         input='speech',
         action='/handle-speech',
+        timeout=15,
         speech_timeout='auto',
         speech_model='experimental_conversational',
         language='en-US'
