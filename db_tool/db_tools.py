@@ -135,13 +135,23 @@ def is_future_datetime(date_str, time_str):
         Tuple[bool, str]: (True, "") if in the future, (False, error message) otherwise.
     """
     try:
-        # Defensive: ensure string and strip whitespace
         date_str = str(date_str).strip()
         time_str = str(time_str).strip()
-        # Debug log
         logger.debug(f"is_future_datetime: date_str='{date_str}', time_str='{time_str}'")
-        dt = datetime.datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M:%S")
-        return dt > datetime.datetime.now(ZoneInfo("Asia/Kolkata")), ""
+        now = datetime.datetime.now(ZoneInfo("Asia/Kolkata"))
+        input_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+        input_time = datetime.datetime.strptime(time_str, "%H:%M:%S").time()
+        current_date = now.date()
+        current_time = now.time()
+        if input_date < current_date:
+            return False, "Date is in the past."
+        elif input_date == current_date:
+            if input_time > current_time:
+                return True, ""
+            else:
+                return False, "Time is in the past."
+        else:  # input_date > current_date
+            return True, ""
     except Exception as e:
         logger.error(f"is_future_datetime: Exception: {e} | date_str='{date_str}', time_str='{time_str}'")
         return False, "Invalid date or time."
