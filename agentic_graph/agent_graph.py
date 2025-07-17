@@ -30,7 +30,7 @@ chat_groq = ChatGroq(
 )
 
 # --- System Prompt for the Agent ---
-SYSTEM_MESSAGE = """
+SYSTEM_MESSAGE = f"""
 You are a helpful, friendly AI assistant for appointment scheduling.
 
 This the current date and time in India: {india_time}, whenever user initiates booking request consider this date and time as current date andtime.

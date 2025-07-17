@@ -29,3 +29,4 @@ dist/
 
 # Windows system files
 Thumbs.db
+agentic_graph/__pycache__/agent_graph.cpython-311.pyc
