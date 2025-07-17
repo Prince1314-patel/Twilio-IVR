@@ -46,7 +46,7 @@ try:
     chat_groq = ChatGroq(
         temperature=0.7,
         # Using a model known for strong conversational abilities.
-        model_name="meta-llama/llama-guard-4-12b",
+        model_name="meta-llama/llama-4-maverick-17b-128e-instruct",
         groq_api_key=GROQ_API_KEY
     )
     print("Langchain ChatGroq LLM initialized successfully.")

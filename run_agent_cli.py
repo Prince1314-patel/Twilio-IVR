@@ -46,7 +46,7 @@ def main():
     print("\nType your message (type 'exit' or 'quit' to end):\n")
     while True:
         try:
-            user_input = input("You: ").strip()
+            user_input = input("🙋‍♂️You: ").strip()
             if user_input.lower() in ("exit", "quit"):
                 logger.info("User exited the session.")
                 print("Goodbye!")
@@ -56,7 +56,7 @@ def main():
             logger.debug("Message history: %s", [f"{type(m).__name__}: {m.content}" for m in messages])
             response = run_agentic_graph(messages, thread_id)
             logger.debug(f"Agent response: {response}")
-            print(f"Agent: {response}\n")
+            print(f"🤖Agent: {response}\n")
             messages.append(AIMessage(content=response))
         except Exception as e:
             logger.exception(f"Error during agent interaction: {e}")
