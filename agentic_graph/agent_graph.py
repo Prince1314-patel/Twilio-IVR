@@ -32,7 +32,7 @@ checkpointer = InMemorySaver()
 
 model = ChatOpenAI(
     temperature=0.7,
-    model_name="gpt-4o-mini",
+    model_name="gpt-4.1-nano",
     openai_api_key=OPENAI_API_KEY
 )
 
