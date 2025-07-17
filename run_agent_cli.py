@@ -46,7 +46,7 @@ def main():
     print("\nType your message (type 'exit' or 'quit' to end):\n")
     while True:
         try:
-            user_input = input("🙋‍♂️You: ").strip()
+            user_input = input("🙋You: ").strip()
             if user_input.lower() in ("exit", "quit"):
                 logger.info("User exited the session.")
                 print("Goodbye!")

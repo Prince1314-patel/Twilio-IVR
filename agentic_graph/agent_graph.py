@@ -1,5 +1,5 @@
 from langgraph.prebuilt import create_react_agent
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage # Import for clarity
@@ -8,7 +8,6 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime
 from zoneinfo import ZoneInfo # Standard library for timezones
-from langchain_core.messages import trim_messages
 
 # Load environment variables from .env file
 load_dotenv()
@@ -18,44 +17,8 @@ GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 # --- LangGraph Store and Checkpointer for Memory ---
 # In production, consider using a persistent store (e.g., RedisStore, SQLliteSaver)
 # InMemorySaver and InMemoryStore are good for development/testing
-# store = InMemoryStore()
-# checkpointer = InMemorySaver()
-
-# --- Conversation Memory (Official LangGraph Pattern) ---
-memory = MemorySaver()
-
-# --- Summary Store (in-memory, can be replaced with persistent storage) ---
-summaries_by_thread = {}
-
-# --- Summarization Logic ---
-def summarize_old_messages(thread_id, all_messages, llm, max_recent=10):
-    """
-    Summarize old messages for a thread, keep the most recent N messages.
-    Args:
-        thread_id (str): Unique session/call ID.
-        all_messages (list): All messages for the thread.
-        llm: The LLM to use for summarization.
-        max_recent (int): Number of recent messages to keep in detail.
-    Returns:
-        summary (str): The running summary.
-        recent_messages (list): The most recent messages.
-    """
-    if len(all_messages) <= max_recent:
-        # Not enough messages to summarize
-        return summaries_by_thread.get(thread_id, ""), all_messages
-    # Split into old and recent
-    old_messages = all_messages[:-max_recent]
-    recent_messages = all_messages[-max_recent:]
-    # Combine old messages and previous summary
-    prev_summary = summaries_by_thread.get(thread_id, "")
-    to_summarize = prev_summary + "\n" + "\n".join([m.content for m in old_messages if hasattr(m, 'content')])
-    # Summarize using the LLM
-    summary_prompt = f"Summarize the following conversation history for future context.\n\n{to_summarize}"
-    summary_result = llm.invoke([SystemMessage(content=summary_prompt)])
-    new_summary = summary_result.content if hasattr(summary_result, 'content') else str(summary_result)
-    # Store the new summary
-    summaries_by_thread[thread_id] = new_summary
-    return new_summary, recent_messages
+store = InMemoryStore()
+checkpointer = InMemorySaver()
 
 # --- LLM Model ---
 # Initialize the ChatGroq model once
@@ -111,21 +74,6 @@ DATA FORMATTING INSTRUCTIONS:
 - If the user provides information in a different or natural language format, you must reformat it to match the above before passing it to any tool.
 """
 
-# --- Prompt Function ---
-def prompt(state):
-    """
-    Compose the prompt for the LLM: summary + recent messages.
-    """
-    # Get thread_id from state/config
-    thread_id = state.get("configurable", {}).get("thread_id", "default")
-    all_messages = state["messages"]
-    summary, recent_messages = summarize_old_messages(thread_id, all_messages, chat_groq, max_recent=10)
-    prompt_msgs = []
-    if summary:
-        prompt_msgs.append(SystemMessage(content=summary))
-    prompt_msgs.extend(recent_messages)
-    return prompt_msgs
-
 def run_agentic_graph(messages: list, thread_id: str) -> str:
     """
     Runs the agentic graph for a given conversation session.
@@ -144,11 +92,16 @@ def run_agentic_graph(messages: list, thread_id: str) -> str:
     dynamic_system_message = get_system_message()
 
     # Re-create the agent with the dynamic system message.
+    # This is necessary because `create_react_agent` takes a static prompt string.
+    # For a high-throughput production system, you might explore more advanced LangGraph patterns
+    # for dynamic prompt injection if recreating the agent becomes a performance bottleneck.
+    # However, for most use cases, this approach is robust and clear.
     current_agent = create_react_agent(
         chat_groq,
         tools=tools,
-        prompt=prompt,           # Use the summarizing prompt
-        checkpointer=memory,     # Use MemorySaver for persistence
+        prompt=dynamic_system_message, # Pass the dynamically generated system message
+        checkpointer=checkpointer,
+        store=store
     )
 
     # Configuration for the agent's state/memory
@@ -156,11 +109,13 @@ def run_agentic_graph(messages: list, thread_id: str) -> str:
 
     try:
         # Invoke the agent with the current conversation messages
-        result = current_agent.invoke({"messages": messages, "configurable": {"thread_id": thread_id}}, config)
+        result = current_agent.invoke({"messages": messages}, config)
 
         # The agent returns a dict with a 'messages' key (list of message objects)
         # The last message in this list is typically the agent's final response
         if result and "messages" in result and result["messages"]:
+            # Ensure the last message is a string type (e.g., HumanMessage, AIMessage)
+            # and extract its content.
             last_message = result["messages"][-1]
             if hasattr(last_message, 'content'):
                 return last_message.content
@@ -168,6 +123,7 @@ def run_agentic_graph(messages: list, thread_id: str) -> str:
                 return "I'm sorry, the agent returned an unexpected message format."
         return "I'm sorry, I couldn't process your request right now (no messages in result)."
     except Exception as e:
-        print(f"Error running agentic graph: {e}")
+        # Basic error handling for the agent invocation itself
+        print(f"Error running agentic graph: {e}") # You might want to log this more robustly
         return "An unexpected error occurred while processing your request. Please try again later."
 
