@@ -89,7 +89,7 @@ async def handle_incoming_call():
     
     # Nest the greeting inside the <Gather> verb. This is the prompt.
     gather.say(
-        "Hello! Welcome to your personal AI booking assistant!",
+        "Hello! Welcome to your personal AI booking assistant! How may I help you today?",
         voice='Polly.Salli'
     )
     
