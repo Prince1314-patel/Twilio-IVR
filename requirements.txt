@@ -5,6 +5,7 @@ twilio
 torch
 torchaudio
 langchain-groq
+langchain
 groq
 chatterbox-tts
 pydub 
