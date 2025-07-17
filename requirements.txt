@@ -1,0 +1,15 @@
+fastapi 
+uvicorn 
+websockets 
+twilio 
+torch
+torchaudio
+langchain-groq
+groq
+chatterbox-tts
+pydub 
+numpy
+python-dotenv
+langgraph
+tzdata
+python-multipart
