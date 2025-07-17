@@ -135,9 +135,15 @@ def is_future_datetime(date_str, time_str):
         Tuple[bool, str]: (True, "") if in the future, (False, error message) otherwise.
     """
     try:
+        # Defensive: ensure string and strip whitespace
+        date_str = str(date_str).strip()
+        time_str = str(time_str).strip()
+        # Debug log
+        logger.debug(f"is_future_datetime: date_str='{date_str}', time_str='{time_str}'")
         dt = datetime.datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M:%S")
         return dt > datetime.datetime.now(ZoneInfo("Asia/Kolkata")), ""
-    except Exception:
+    except Exception as e:
+        logger.error(f"is_future_datetime: Exception: {e} | date_str='{date_str}', time_str='{time_str}'")
         return False, "Invalid date or time."
 
 def is_within_business_hours(time_str, start_hour=9, end_hour=17):
