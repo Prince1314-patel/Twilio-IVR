@@ -1,8 +1,31 @@
 .env
 ngrok
-venv
-__pycache__
+venv/
+__pycache__/
 agent_cli.log
-agentic_graph/__pycache__
-db_tool/__pycache__
+agentic_graph/__pycache__/
+db_tool/__pycache__/
 appointment_tools.log
+appointments.db
+
+# Byte-compiled / optimized / DLL files
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# VSCode settings
+.vscode/
+
+# MacOS system files
+.DS_Store
+
+# Windows system files
+Thumbs.db
