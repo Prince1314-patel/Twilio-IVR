@@ -409,3 +409,96 @@ def get_available_slots_for_date(date: str) -> str:
     except Exception as e:
         logger.error(f"Tool: get_available_slots_for_date | Exception: {str(e)}")
         return f"Error getting available slots: {str(e)}"
+
+@tool
+def update_appointment_in_db(appointment_id: int, name: str = None, email: str = None, appointment_type: str = None, date: str = None, time: str = None, status: str = None, notes: str = None) -> str:
+    """
+    Update an existing appointment in the database. Only provided fields will be updated.
+    Args:
+        appointment_id (int): The ID of the appointment to update.
+        name (str, optional): New name.
+        email (str, optional): New email.
+        appointment_type (str, optional): New appointment type.
+        date (str, optional): New appointment date (YYYY-MM-DD).
+        time (str, optional): New appointment time (HH:MM:SS).
+        status (str, optional): New status.
+        notes (str, optional): New notes.
+    Returns:
+        str: Success or error message.
+    """
+    log_input = {'appointment_id': appointment_id, 'name': name, 'email': mask_email(email) if email else None, 'appointment_type': appointment_type, 'date': date, 'time': time, 'status': status, 'notes': notes}
+    logger.info(f"Tool: update_appointment_in_db | Input: {log_input}")
+    if not isinstance(appointment_id, int) or appointment_id <= 0:
+        return "Invalid appointment ID."
+    update_fields = {}
+    if name is not None:
+        valid, msg = validate_name(name)
+        if not valid:
+            return msg
+        update_fields['name'] = name
+    if email is not None:
+        valid, msg = validate_email(email)
+        if not valid:
+            return msg
+        update_fields['email'] = email
+    if appointment_type is not None:
+        valid, msg = validate_appointment_type(appointment_type)
+        if not valid:
+            return msg
+        update_fields['appointment_type'] = appointment_type
+    if date is not None:
+        valid, msg = validate_date(date)
+        if not valid:
+            return msg
+        update_fields['appointment_date'] = date
+    if time is not None:
+        valid, msg = validate_time(time)
+        if not valid:
+            return msg
+        update_fields['appointment_time'] = time
+    if status is not None:
+        update_fields['status'] = status
+    if notes is not None:
+        update_fields['notes'] = notes
+    if not update_fields:
+        return "No valid fields provided to update."
+    try:
+        result = db_manager.update_appointment(appointment_id, **update_fields)
+        if result["success"]:
+            msg = f"Appointment updated successfully."
+            logger.info(f"Tool: update_appointment_in_db | Result: {msg}")
+            return msg
+        else:
+            msg = f"Failed to update appointment: {result['message']}"
+            logger.warning(f"Tool: update_appointment_in_db | Result: {msg}")
+            return msg
+    except Exception as e:
+        logger.error(f"Tool: update_appointment_in_db | Exception: {str(e)}")
+        return f"Error updating appointment: {str(e)}"
+
+@tool
+def cancel_appointment_in_db(appointment_id: int) -> str:
+    """
+    Cancel (soft-delete) an appointment by setting its status to 'cancelled'.
+    Args:
+        appointment_id (int): The ID of the appointment to cancel.
+    Returns:
+        str: Success or error message.
+    """
+    log_input = {'appointment_id': appointment_id}
+    logger.info(f"Tool: cancel_appointment_in_db | Input: {log_input}")
+    if not isinstance(appointment_id, int) or appointment_id <= 0:
+        return "Invalid appointment ID."
+    try:
+        result = db_manager.cancel_appointment(appointment_id)
+        if result["success"]:
+            msg = f"Appointment cancelled successfully."
+            logger.info(f"Tool: cancel_appointment_in_db | Result: {msg}")
+            return msg
+        else:
+            msg = f"Failed to cancel appointment: {result['message']}"
+            logger.warning(f"Tool: cancel_appointment_in_db | Result: {msg}")
+            return msg
+    except Exception as e:
+        logger.error(f"Tool: cancel_appointment_in_db | Exception: {str(e)}")
+        return f"Error cancelling appointment: {str(e)}"

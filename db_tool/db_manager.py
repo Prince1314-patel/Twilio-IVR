@@ -220,3 +220,65 @@ class DatabaseManager:
         
         conn.close()
         return appointments
+
+    def update_appointment(self, appointment_id: int, **fields) -> Dict:
+        """
+        Update an existing appointment in the database.
+        Args:
+            appointment_id (int): The ID of the appointment to update.
+            **fields: Fields to update (name, email, appointment_type, appointment_date, appointment_time, status, notes).
+        Returns:
+            Dict: Response dictionary containing:
+                - success (bool): Whether the operation was successful
+                - message (str): Success or error message
+                - error (str, optional): Error details if operation failed
+        """
+        allowed_fields = {"name", "email", "appointment_type", "appointment_date", "appointment_time", "status", "notes"}
+        update_fields = {k: v for k, v in fields.items() if k in allowed_fields}
+        if not update_fields:
+            return {"success": False, "message": "No valid fields to update."}
+        set_clause = ", ".join([f"{k} = ?" for k in update_fields])
+        values = list(update_fields.values())
+        values.append(appointment_id)
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute(f"""
+                UPDATE appointments SET {set_clause} WHERE id = ?
+            """, values)
+            conn.commit()
+            if cursor.rowcount == 0:
+                return {"success": False, "message": "Appointment not found."}
+            return {"success": True, "message": "Appointment updated successfully."}
+        except Exception as e:
+            conn.rollback()
+            return {"success": False, "error": str(e), "message": "Failed to update appointment."}
+        finally:
+            conn.close()
+
+    def cancel_appointment(self, appointment_id: int) -> Dict:
+        """
+        Cancel (soft-delete) an appointment by setting its status to 'cancelled'.
+        Args:
+            appointment_id (int): The ID of the appointment to cancel.
+        Returns:
+            Dict: Response dictionary containing:
+                - success (bool): Whether the operation was successful
+                - message (str): Success or error message
+                - error (str, optional): Error details if operation failed
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                UPDATE appointments SET status = 'cancelled' WHERE id = ?
+            """, (appointment_id,))
+            conn.commit()
+            if cursor.rowcount == 0:
+                return {"success": False, "message": "Appointment not found."}
+            return {"success": True, "message": "Appointment cancelled successfully."}
+        except Exception as e:
+            conn.rollback()
+            return {"success": False, "error": str(e), "message": "Failed to cancel appointment."}
+        finally:
+            conn.close()

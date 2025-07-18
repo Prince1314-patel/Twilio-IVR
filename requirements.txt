@@ -15,3 +15,4 @@ langgraph
 tzdata
 python-multipart
 pytz
+langgraph-supervisor

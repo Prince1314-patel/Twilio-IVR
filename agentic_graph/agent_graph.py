@@ -1,38 +1,30 @@
-from langgraph.prebuilt import create_react_agent
-from langgraph.checkpoint.memory import InMemorySaver
-from langgraph.store.memory import InMemoryStore
-from langchain_groq import ChatGroq
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage # Import for clarity
-from db_tool.db_tools import check_appointment_availability, create_appointment_in_db, get_available_slots_for_date
 import os
 from dotenv import load_dotenv
 from datetime import datetime
-from zoneinfo import ZoneInfo # Standard library for timezones
+from zoneinfo import ZoneInfo
+
+from langgraph.prebuilt import create_react_agent
+from langgraph_supervisor import create_supervisor
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.store.memory import InMemoryStore
+from langchain_openai import ChatOpenAI
+
+from db_tool.db_tools import (
+    create_appointment_in_db,
+    check_appointment_availability,
+    get_available_slots_for_date,
+    update_appointment_in_db,
+    cancel_appointment_in_db,
+)
 
 # Load environment variables from .env file
 load_dotenv()
-LANGSMITH_API_KEY = os.getenv('LANGSMITH_API_KEY')
-# GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
-# --- LangGraph Store and Checkpointer for Memory ---
-# In production, consider using a persistent store (e.g., RedisStore, SQLliteSaver)
-# InMemorySaver and InMemoryStore are good for development/testing
-store = InMemoryStore()
-checkpointer = InMemorySaver()
-
-# --- LLM Model ---
-# Initialize the ChatGroq model once
-# model = ChatGroq(
-#     temperature=0.7,
-#     model_name="meta-llama/llama-4-maverick-17b-128e-instruct",
-#     groq_api_key=GROQ_API_KEY
-# )
-
+# Initialize the OpenAI model
 model = ChatOpenAI(
     temperature=0.7,
-    model_name="gpt-4o-mini",
+    model_name="gpt-4o",
     openai_api_key=OPENAI_API_KEY
 )
 
@@ -41,7 +33,9 @@ model = ChatOpenAI(
 tools = [
     check_appointment_availability,
     create_appointment_in_db,
-    get_available_slots_for_date
+    get_available_slots_for_date,
+    update_appointment_in_db,
+    cancel_appointment_in_db
 ]
 
 # --- Dynamic System Prompt Function ---
@@ -86,56 +80,92 @@ DATA FORMATTING INSTRUCTIONS:
 - If the user provides information in a different or natural language format, you must reformat it to match the above before passing it to any tool.
 """
 
+# --- Define Specialized CRUD Agents ---
+
+create_agent = create_react_agent(
+    model=model,
+    tools=[create_appointment_in_db],
+    name="create_agent",
+    prompt="You are an expert at creating new appointments. Only handle creation requests."
+)
+
+read_agent = create_react_agent(
+    model=model,
+    tools=[check_appointment_availability, get_available_slots_for_date],
+    name="read_agent",
+    prompt="You are an expert at reading appointment data. Only handle queries about availability or slots."
+)
+
+update_agent = create_react_agent(
+    model=model,
+    tools=[update_appointment_in_db],
+    name="update_agent",
+    prompt="You are an expert at updating appointments. Only handle update requests."
+)
+
+delete_agent = create_react_agent(
+    model=model,
+    tools=[cancel_appointment_in_db],
+    name="delete_agent",
+    prompt="You are an expert at cancelling appointments. Only handle cancellation requests."
+)
+
+# --- Create Supervisor Agent ---
+
+supervisor_prompt = (
+    "You are a supervisor agent managing four specialized agents: create_agent, read_agent, update_agent, and delete_agent. "
+    "Route user requests to the correct agent based on intent: "
+    "creation (create_agent), reading/querying (read_agent), updating (update_agent), or deleting/cancelling (delete_agent). "
+    "If the request is ambiguous, ask the user for clarification."
+)
+
+supervisor_workflow = create_supervisor(
+    [create_agent, read_agent, update_agent, delete_agent],
+    model=model,
+    prompt=supervisor_prompt,
+)
+
+# --- State Management and Workflow Compilation ---
+
+checkpointer = InMemorySaver()
+store = InMemoryStore()
+
+app = supervisor_workflow.compile(
+    checkpointer=checkpointer,
+    store=store
+)
+
+
+# --- Entry Point Function ---
 def run_agentic_graph(messages: list, thread_id: str) -> str:
     """
-    Runs the agentic graph for a given conversation session.
-    The agent's system prompt is dynamically updated with the current time for each invocation.
-
+    Runs the supervisor agentic graph for a given conversation session.
     Args:
-        messages (List[BaseMessage]): List of LangChain message objects (HumanMessage, AIMessage, etc.).
-                                      This should contain the conversation history.
-        thread_id (str): Unique session/call ID (e.g., Twilio CallSid).
-                         Used by the checkpointer for conversation memory.
-
+        messages (list): List of message dicts (role/content) or LangChain message objects.
+        thread_id (str): Unique session/call ID (used for memory).
     Returns:
         str: The agent's response as text.
     """
-    # Generate the dynamic system message for the current invocation
-    dynamic_system_message = get_system_message()
-
-    # Re-create the agent with the dynamic system message.
-    # This is necessary because `create_react_agent` takes a static prompt string.
-    # For a high-throughput production system, you might explore more advanced LangGraph patterns
-    # for dynamic prompt injection if recreating the agent becomes a performance bottleneck.
-    # However, for most use cases, this approach is robust and clear.
-    current_agent = create_react_agent(
-        model,
-        tools=tools,
-        prompt=dynamic_system_message, # Pass the dynamically generated system message
-        checkpointer=checkpointer,
-        store=store
-    )
-
-    # Configuration for the agent's state/memory
+    # Prepend system message with current date/time/zone
+    now = datetime.now(ZoneInfo("Asia/Kolkata"))
+    system_message = {
+        "role": "system",
+        "content": f"Current date and time in Asia/Kolkata: {now.strftime('%Y-%m-%d %H:%M:%S')}"
+    }
+    messages_with_time = [system_message] + messages
     config = {"configurable": {"thread_id": thread_id}}
-
     try:
-        # Invoke the agent with the current conversation messages
-        result = current_agent.invoke({"messages": messages}, config)
-
-        # The agent returns a dict with a 'messages' key (list of message objects)
-        # The last message in this list is typically the agent's final response
+        result = app.invoke({"messages": messages_with_time}, config)
         if result and "messages" in result and result["messages"]:
-            # Ensure the last message is a string type (e.g., HumanMessage, AIMessage)
-            # and extract its content.
             last_message = result["messages"][-1]
             if hasattr(last_message, 'content'):
                 return last_message.content
+            elif isinstance(last_message, dict) and 'content' in last_message:
+                return last_message['content']
             else:
                 return "I'm sorry, the agent returned an unexpected message format."
         return "I'm sorry, I couldn't process your request right now (no messages in result)."
     except Exception as e:
-        # Basic error handling for the agent invocation itself
-        print(f"Error running agentic graph: {e}") # You might want to log this more robustly
+        print(f"Error running agentic graph: {e}")
         return "An unexpected error occurred while processing your request. Please try again later."
 
