@@ -1,0 +1,40 @@
+# FastAPI and Web Framework
+fastapi
+uvicorn[standard]
+websockets
+python-multipart
+
+# Streamlit for Web Interface
+streamlit
+
+# Twilio for Voice Calling
+twilio  
+
+# AI and Language Models
+langchain
+langchain-groq
+langchain-openai
+langgraph
+langgraph-supervisor
+groq
+openai
+
+# Text-to-Speech
+chatterbox-tts
+pydub
+
+# Data Processing
+numpy
+torch
+torchaudio
+
+# Utilities
+python-dotenv
+tzdata
+pytz
+
+# HTTP Client
+requests
+
+# Pydantic for Data Validation
+pydantic
