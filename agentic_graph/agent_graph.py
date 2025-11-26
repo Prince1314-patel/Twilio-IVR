@@ -7,9 +7,9 @@ from langgraph.prebuilt import create_react_agent
 from langgraph_supervisor import create_supervisor
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
-from langchain_openai import ChatOpenAI
 from datetime import datetime
 import pytz
+import logging
 
 from db_tool.db_tools import (
     create_appointment_in_db,
@@ -20,17 +20,28 @@ from db_tool.db_tools import (
 )
 
 from agentic_graph.prompts import GENERAL_AGENT_PROMPT
+from langchain_core.messages import HumanMessage, AIMessage
+from app.core.config import create_llm_model, settings
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
 load_dotenv()
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
-# Initialize the OpenAI model
-model = ChatOpenAI(
-    temperature=0.7,
-    model_name="gpt-4o",
-    openai_api_key=OPENAI_API_KEY
-)
+# In-memory conversation history for streaming sessions
+# Format: {session_id: [messages]}
+streaming_sessions = {}
+
+# Initialize the LLM model based on configuration
+try:
+    model = create_llm_model()
+    logger.info(
+        f"Initialized LLM model: provider={settings.LLM_PROVIDER}, "
+        f"model={settings.get_llm_model_name()}, temperature={settings.AI_TEMPERATURE}"
+    )
+except Exception as e:
+    logger.error(f"Failed to initialize LLM model: {e}")
+    raise
 
 # --- Register Tools ---
 # Define your tools once
@@ -91,4 +102,79 @@ def run_agentic_graph(messages: list, thread_id: str) -> str:
     except Exception as e:
         print(f"Error running agentic graph: {e}")
         return "An unexpected error occurred while processing your request. Please try again later."
+
+
+async def run_agentic_graph_streaming(user_text: str, session_id: str) -> str:
+    """
+    Run the agentic graph for streaming voice sessions.
+    
+    This function maintains conversation history per session (similar to chat WebSocket)
+    and processes user input through the AI agent. Designed for real-time voice streaming.
+    
+    Args:
+        user_text (str): User's transcribed speech input
+        session_id (str): Unique session identifier (typically call SID)
+        
+    Returns:
+        str: AI agent's response text in Hindi
+        
+    Raises:
+        Exception: If agent processing fails
+    """
+    import pytz
+    from datetime import datetime
+    
+    # Initialize session history if new
+    if session_id not in streaming_sessions:
+        streaming_sessions[session_id] = []
+    
+    # Add user message to history
+    user_message = HumanMessage(content=user_text)
+    streaming_sessions[session_id].append(user_message)
+    
+    # Prepare messages with time context
+    india = pytz.timezone('Asia/Kolkata')
+    india_time = datetime.now(india)
+    system_message = {
+        "role": "system",
+        "content": f"Current date and time in Asia/Kolkata: {india_time.strftime('%Y-%m-%d %H:%M:%S')}"
+    }
+    
+    # Convert LangChain messages to dict format for agent
+    messages_for_agent = [system_message]
+    for msg in streaming_sessions[session_id]:
+        if isinstance(msg, HumanMessage):
+            messages_for_agent.append({"role": "user", "content": msg.content})
+        elif isinstance(msg, AIMessage):
+            messages_for_agent.append({"role": "assistant", "content": msg.content})
+    
+    # Run agent
+    config = {"configurable": {"thread_id": session_id}}
+    try:
+        result = appointment_agent.invoke({"messages": messages_for_agent}, config)
+        
+        if result and "messages" in result and result["messages"]:
+            last_message = result["messages"][-1]
+            
+            # Extract content
+            if hasattr(last_message, 'content'):
+                ai_response = last_message.content
+            elif isinstance(last_message, dict) and 'content' in last_message:
+                ai_response = last_message['content']
+            else:
+                ai_response = "मुझे क्षमा करें, मैं आपकी बात समझ नहीं पाया। कृपया दोबारा कहें।"
+            
+            # Add AI response to history
+            ai_message = AIMessage(content=ai_response)
+            streaming_sessions[session_id].append(ai_message)
+            
+            return ai_response
+        else:
+            error_msg = "मुझे क्षमा करें, मैं अभी आपकी बात नहीं समझ पाया। कृपया दोबारा कोशिश करें।"
+            return error_msg
+            
+    except Exception as e:
+        print(f"Error running agentic graph for streaming: {e}")
+        error_msg = "एक अप्रत्याशित त्रुटि हुई। कृपया बाद में पुनः प्रयास करें।"
+        return error_msg
 

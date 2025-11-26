@@ -26,7 +26,7 @@ import uuid
 from typing import Dict, List
 import logging
 
-from app.routers import chat, voice
+from app.routers import chat, voice, voice_stream
 from app.core.config import settings
 from app.core.websocket_manager import WebSocketManager
 
@@ -58,6 +58,7 @@ websocket_manager = WebSocketManager()
 # Include routers
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(voice.router, prefix="/api/voice", tags=["voice"])
+app.include_router(voice_stream.router, prefix="/api/voice", tags=["voice-stream"])
 
 @app.get("/", response_class=HTMLResponse)
 async def root():

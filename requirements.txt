@@ -6,12 +6,14 @@ python-multipart
 
 # Streamlit for Web Interface
 streamlit
+audio-recorder-streamlit
 
 # Twilio for Voice Calling
-twilio  
+twilio
 
 # AI and Language Models
 langchain
+langchain-core
 langchain-groq
 langchain-openai
 langgraph
@@ -19,14 +21,14 @@ langgraph-supervisor
 groq
 openai
 
-# Text-to-Speech
-chatterbox-tts
-pydub
+# Text-to-Speech and Audio Processing
+# chatterbox-tts  # Not used - using Sarvam AI for TTS instead
+# pydub  # Not used - using audioop (standard library) for audio processing
 
 # Data Processing
-numpy
-torch
-torchaudio
+# numpy  # Not used in current implementation
+# torch  # Not used - no local ML models
+# torchaudio  # Not used - no local ML models
 
 # Utilities
 python-dotenv
@@ -35,6 +37,10 @@ pytz
 
 # HTTP Client
 requests
+httpx
 
 # Pydantic for Data Validation
 pydantic
+
+# Sarvam AI SDK
+sarvamai

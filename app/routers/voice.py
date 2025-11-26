@@ -5,23 +5,23 @@ Voice API Router
 This module provides REST API endpoints for voice functionality including
 Twilio webhook handling and voice call management.
 
+Note: Real-time streaming is handled by voice_stream.py router.
+This router maintains legacy endpoints for call management.
+
 Author: Advanced AI Systems Team
 Last Modified: 2025-01-27
 """
 
-from fastapi import APIRouter, Request, Form, HTTPException
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
-from twilio.twiml.voice_response import VoiceResponse, Gather
+from twilio.twiml.voice_response import VoiceResponse
 from pydantic import BaseModel
 from typing import Optional
 import logging
-import os
 import time
 from twilio.rest import Client
 
 from app.core.config import settings
-from agentic_graph.agent_graph import run_agentic_graph
-from langchain_core.messages import HumanMessage, AIMessage
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +31,9 @@ router = APIRouter()
 # Initialize Twilio client
 twilio_client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
 
-# In-memory chat history per call session
-# Note: For production, consider using a more persistent store like Redis.
+# In-memory stores (legacy, kept for compatibility)
 call_sessions = {}
+
 
 def retry_twilio_operation(operation_func, operation_name, *args, **kwargs):
     """
@@ -68,24 +68,6 @@ def retry_twilio_operation(operation_func, operation_name, *args, **kwargs):
             # Wait before retrying (exponential backoff)
             time.sleep(retry_delay * (attempt + 1))
 
-# System message for the AI assistant (from working answer_phone.py)
-SYSTEM_MESSAGE = """
-You are an AI assistant whose sole purpose is to help users book appointments over the phone.
-
-Your responsibilities:
-- Assist users with scheduling, rescheduling, or canceling appointments.
-- Provide information about available time slots and appointment status.
-- Collect necessary details for bookings (name, email, appointment type, date, and time).
-- Speak warmly, clearly, and keep responses short and conversational.
-
-STRICT FACTUAL RULES:
-- For any information about appointments, bookings, or time slots, NEVER guess or make up data. Only refer to information provided by the system or tools.
-- If you do not know the answer, politely say you are unable to provide that information right now.
-
-IMPORTANT:
-- If a user asks about anything unrelated to appointments, politely explain that you can only assist with booking, rescheduling, or canceling appointments.
-- Do not engage in general conversation or provide information outside of appointment scheduling.
-"""
 
 class CallRequest(BaseModel):
     """
@@ -160,103 +142,43 @@ async def initiate_call(call_request: CallRequest):
 @router.post("/incoming-call")
 async def handle_incoming_call():
     """
-    Handle incoming calls from Twilio.
+    Handle incoming calls from Twilio and redirect to streaming endpoint.
     
-    This endpoint is called by Twilio when a call is received.
-    It greets the user and starts the conversation loop.
-    
-    Returns:
-        HTMLResponse: TwiML XML response for Twilio
+    This endpoint now returns TwiML that connects to the Media Stream WebSocket
+    for real-time bi-directional audio streaming.
     """
     response = VoiceResponse()
     
-    # Start listening for the user's response using <Gather>.
-    gather = response.gather(
-        input='speech',
-        action='/api/voice/handle-speech',
-        speech_timeout='auto',
-        speech_model='experimental_conversational',
-        language='en-US'
-    )
-    
-    # Nest the greeting inside the <Gather> verb. This is the prompt.
-    gather.say(
-        "Hello! Welcome to your personal AI booking assistant! How may I help you today?",
-        voice='Polly.Salli'
-    )
-    
-    # If the <Gather> finishes without any speech, Twilio will proceed to the next verb.
-    # This provides a graceful exit instead of an abrupt hang-up.
-    response.say("We didn't receive a response. Thank you for calling. Goodbye.", voice='Polly.Salli')
-    response.hangup()
-    
-    return HTMLResponse(content=str(response), media_type="application/xml")
-
-@router.post("/handle-speech")
-async def handle_speech(request: Request):
-    """
-    Process speech input from the user and respond.
-    
-    This is the main conversational loop for voice interactions.
-    
-    Args:
-        request (Request): FastAPI request object containing Twilio form data
-        
-    Returns:
-        HTMLResponse: TwiML XML response for Twilio
-    """
-    # Parse the form data from Twilio's request
-    form = await request.form()
-    call_sid = form.get("CallSid")
-    user_speech = form.get("SpeechResult", "").strip()
-    
-    response = VoiceResponse()
-
-    if not call_sid:
-        response.say("An application error occurred. Please call back later.", voice='Polly.Salli')
+    # Convert HTTP/HTTPS URL to WSS (WebSocket Secure) for Media Streams
+    # Twilio Media Streams require wss:// protocol
+    webhook_url = settings.TWILIO_WEBHOOK_URL
+    if not webhook_url:
+        logger.error("TWILIO_WEBHOOK_URL is not set")
+        response.say("Configuration error. Please contact support.", language='en-US')
         response.hangup()
         return HTMLResponse(content=str(response), media_type="application/xml")
-
-    # Initialize session if it's a new call
-    if call_sid not in call_sessions:
-        call_sessions[call_sid] = {'history': []}
-
-    # Start the next <Gather> to continue the conversation loop.
-    gather = response.gather(
-        input='speech',
-        action='/api/voice/handle-speech',
-        timeout=15,
-        speech_timeout='auto',
-        speech_model='experimental_conversational',
-        language='en-US'
-    )
-
-    # If the user said something, process it and say the response.
-    if user_speech:
-        print(f"[{call_sid}] User said: {user_speech}")
-        from langchain_core.messages import HumanMessage, AIMessage
-        call_sessions[call_sid]['history'].append(HumanMessage(content=user_speech))
-
-        # Use the agentic graph for response generation
-        llm_response_text = run_agentic_graph(
-            [*call_sessions[call_sid]['history']],
-            thread_id=call_sid
-        )
-        print(f"[{call_sid}] AI said: {llm_response_text}")
-
-        call_sessions[call_sid]['history'].append(AIMessage(content=llm_response_text))
-        # Nest the AI's response inside the new <Gather> as its prompt.
-        gather.say(llm_response_text, voice='Polly.Salli')
+    
+    if webhook_url.startswith("https://"):
+        stream_url = webhook_url.replace("https://", "wss://") + "/api/voice/stream"
+    elif webhook_url.startswith("http://"):
+        stream_url = webhook_url.replace("http://", "ws://") + "/api/voice/stream"
+    elif webhook_url.startswith("wss://") or webhook_url.startswith("ws://"):
+        stream_url = f"{webhook_url}/api/voice/stream"
     else:
-        # If no speech was detected from the previous <Gather>, prompt the user again.
-        print(f"[{call_sid}] No speech detected.")
-        # Nest the re-prompt inside the new <Gather>.
-        gather.say("I'm sorry, I didn't hear anything. Could you please say that again?", voice='Polly.Salli')
-
-    # Add a fallback in case this new <Gather> also times out.
-    response.say("It seems we've been disconnected. Thank you for calling. Goodbye.", voice='Polly.Salli')
-    response.hangup()
-
+        # If URL doesn't start with protocol, assume https and convert to wss
+        stream_url = f"wss://{webhook_url}/api/voice/stream"
+    
+    logger.info(f"Connecting to Media Stream at: {stream_url}")
+    
+    # Connect to Media Stream WebSocket for real-time bi-directional audio
+    # The stream will handle the greeting and all subsequent interactions
+    connect = response.connect()
+    connect.stream(url=stream_url)
+    
+    # Note: We don't use response.say() here because the greeting will be sent
+    # through the Media Stream as audio (using Sarvam TTS) when the stream starts.
+    # This ensures seamless transition and keeps the call active.
+    
     return HTMLResponse(content=str(response), media_type="application/xml")
 
 @router.get("/call-status/{call_sid}")
