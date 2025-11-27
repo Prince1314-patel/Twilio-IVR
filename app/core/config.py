@@ -53,7 +53,7 @@ class Settings:
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "openai").lower()  # Options: "openai" or "groq"
     LLM_MODEL: str = os.getenv("LLM_MODEL", "")  # Model name (will use provider-specific default if not set)
     MODEL_NAME: str = os.getenv("MODEL_NAME", "")  # Alternative model name variable (takes precedence over LLM_MODEL)
-    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o")
+    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4.1-2025-04-14")
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "meta-llama/llama-4-maverick-17b-128e-instruct")
     AI_TEMPERATURE: float = float(os.getenv("AI_TEMPERATURE", "0.7"))
     

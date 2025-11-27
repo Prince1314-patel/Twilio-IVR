@@ -54,12 +54,14 @@ streaming_sessions: Dict[str, dict] = {}
 
 # Audio buffer configuration
 MIN_BUFFER_DURATION_MS = 1500  # Minimum 1.5 seconds before processing
-MAX_BUFFER_DURATION_MS = 5000  # Maximum 5 seconds buffer
-SILENCE_DURATION_MS = 2000  # Wait 2 seconds of silence before processing
+MAX_BUFFER_DURATION_MS = 20000  # Maximum 20 seconds buffer (allows longer speech without cutting off)
+SILENCE_DURATION_MS = 3000  # Wait 3 seconds of silence (no speech activity) before processing
 SAMPLE_RATE_8K = 8000
 BYTES_PER_SAMPLE_8K = 1  # mulaw is 1 byte per sample
 MIN_BUFFER_SIZE_BYTES = int((MIN_BUFFER_DURATION_MS / 1000) * SAMPLE_RATE_8K * BYTES_PER_SAMPLE_8K)
 MAX_BUFFER_SIZE_BYTES = int((MAX_BUFFER_DURATION_MS / 1000) * SAMPLE_RATE_8K * BYTES_PER_SAMPLE_8K)
+# Silence detection: check for speech activity every 200ms during silence period
+SILENCE_CHECK_INTERVAL_MS = 200  # Check for speech every 200ms
 
 
 @router.websocket("/stream")
@@ -166,13 +168,15 @@ async def handle_media_stream(websocket: WebSocket):
                 # Update last audio timestamp
                 session["last_audio_time"] = time.time()
                 
-                # Cancel existing silence timer if any
+                # Cancel existing silence timer if any (new audio means we need to restart silence detection)
                 if session.get("silence_timer") and not session["silence_timer"].done():
                     session["silence_timer"].cancel()
+                    session["silence_timer"] = None  # Clear reference so new timer can be created
                 
-                # Check if buffer exceeds maximum size (force process)
+                # Check if buffer exceeds maximum size (safety mechanism to prevent unbounded growth)
+                # This should rarely trigger now with 20s buffer, but acts as a fallback
                 if len(session["audio_buffer"]) >= MAX_BUFFER_SIZE_BYTES:
-                    logger.debug(f"[{session_id}] Buffer reached max size ({MAX_BUFFER_DURATION_MS}ms), processing immediately")
+                    logger.debug(f"[{session_id}] Buffer reached max size ({MAX_BUFFER_DURATION_MS}ms), processing to prevent overflow")
                     await process_audio_buffer(session_id)
                 # Check if buffer has minimum audio and start silence detection
                 # Only start timer if speech has been detected (don't process pure silence)
@@ -180,19 +184,62 @@ async def handle_media_stream(websocket: WebSocket):
                     # Start silence detection timer only if one doesn't exist or is done
                     if not session.get("silence_timer") or session["silence_timer"].done():
                         # Start silence detection timer
-                        # If no audio for SILENCE_DURATION_MS, process the buffer
+                        # Continuously check for 3 seconds of actual silence (no speech activity)
                         async def check_silence_and_process():
-                            await asyncio.sleep(SILENCE_DURATION_MS / 1000.0)
-                            # Check if still no new audio and buffer has content and speech
-                            if session_id in streaming_sessions:
+                            silence_start_time = None
+                            check_interval = SILENCE_CHECK_INTERVAL_MS / 1000.0  # Convert to seconds
+                            total_silence_needed = SILENCE_DURATION_MS / 1000.0  # 3 seconds
+                            
+                            while session_id in streaming_sessions:
                                 current_session = streaming_sessions[session_id]
-                                if (current_session.get("last_audio_time") and 
-                                    time.time() - current_session["last_audio_time"] >= SILENCE_DURATION_MS / 1000.0 and
-                                    len(current_session.get("audio_buffer", b"")) >= MIN_BUFFER_SIZE_BYTES and
-                                    current_session.get("has_speech_detected", False) and
-                                    not current_session.get("is_speaking", False)):
-                                    logger.debug(f"[{session_id}] Silence detected ({SILENCE_DURATION_MS}ms) after speech, processing buffer ({len(current_session['audio_buffer'])} bytes)")
-                                    await process_audio_buffer(session_id)
+                                
+                                # Check if we should stop (session deleted, speaking, or no buffer)
+                                if (current_session.get("is_speaking", False) or
+                                    len(current_session.get("audio_buffer", b"")) < MIN_BUFFER_SIZE_BYTES or
+                                    not current_session.get("has_speech_detected", False)):
+                                    return
+                                
+                                # Get recent audio from buffer to check for speech activity
+                                # Check last 500ms of audio (4000 bytes at 8kHz mulaw)
+                                recent_audio_bytes = 4000  # ~500ms at 8kHz
+                                buffer = current_session.get("audio_buffer", b"")
+                                recent_buffer = buffer[-recent_audio_bytes:] if len(buffer) > recent_audio_bytes else buffer
+                                
+                                # Check if recent audio has speech activity
+                                has_recent_speech = False
+                                if len(recent_buffer) > 0:
+                                    try:
+                                        pcm16_8k_recent = mulaw_to_pcm16(recent_buffer)
+                                        has_recent_speech = has_speech_activity(pcm16_8k_recent, threshold=500)
+                                    except Exception as e:
+                                        logger.debug(f"[{session_id}] Could not check recent speech activity: {e}")
+                                        # If check fails, assume there's speech (safer to wait)
+                                        has_recent_speech = True
+                                
+                                if has_recent_speech:
+                                    # Speech detected - reset silence timer
+                                    silence_start_time = None
+                                    logger.debug(f"[{session_id}] Speech activity detected, resetting silence timer")
+                                else:
+                                    # No speech detected
+                                    if silence_start_time is None:
+                                        # Start tracking silence period
+                                        silence_start_time = time.time()
+                                        logger.debug(f"[{session_id}] Silence detected, starting {total_silence_needed}s timer")
+                                    else:
+                                        # Check if we've had enough silence
+                                        silence_duration = time.time() - silence_start_time
+                                        if silence_duration >= total_silence_needed:
+                                            # 3 seconds of silence confirmed - process buffer
+                                            if (len(current_session.get("audio_buffer", b"")) >= MIN_BUFFER_SIZE_BYTES and
+                                                current_session.get("has_speech_detected", False) and
+                                                not current_session.get("is_speaking", False)):
+                                                logger.debug(f"[{session_id}] {total_silence_needed}s of silence confirmed, processing buffer ({len(current_session['audio_buffer'])} bytes)")
+                                                await process_audio_buffer(session_id)
+                                                return
+                                
+                                # Wait before next check
+                                await asyncio.sleep(check_interval)
                         
                         session["silence_timer"] = asyncio.create_task(check_silence_and_process())
                     

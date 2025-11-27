@@ -40,8 +40,8 @@ class DatabaseManager:
         >>> db = DatabaseManager()
         >>> available = db.check_availability("2025-06-05", "14:30:00")
         >>> if available:
-        ...     db.create_appointment("John Doe", "john@example.com", 
-        ...                          "consultation", "2025-06-05", "14:30:00")
+        ...     db.create_appointment("John Doe", "9876543210", 
+        ...                          "regular", "2025-06-05", "14:30:00")
     """
     
     def __init__(self, db_path: str = "appointments.db"):
@@ -67,7 +67,7 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS appointments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                email TEXT NOT NULL,
+                mobile_number TEXT NOT NULL,
                 appointment_type TEXT NOT NULL,
                 appointment_date DATE NOT NULL,
                 appointment_time TIME NOT NULL,
@@ -76,6 +76,17 @@ class DatabaseManager:
                 notes TEXT
             )
         ''')
+        
+        # Migration: Check if mobile_number column exists, if not add it
+        cursor.execute("PRAGMA table_info(appointments)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'mobile_number' not in columns:
+            try:
+                cursor.execute('ALTER TABLE appointments ADD COLUMN mobile_number TEXT')
+            except sqlite3.OperationalError:
+                # Column addition failed, ignore
+                pass
         
         conn.commit()
         conn.close()
@@ -137,15 +148,15 @@ class DatabaseManager:
         
         return available_slots
     
-    def create_appointment(self, name: str, email: str, appointment_type: str, 
+    def create_appointment(self, name: str, mobile_number: str, appointment_type: str, 
                          date: str, time: str, notes: str = "") -> Dict:
         """
         Create a new appointment in the database.
         
         Args:
             name (str): Client's full name.
-            email (str): Client's email address.
-            appointment_type (str): Type of appointment (e.g., consultation).
+            mobile_number (str): Client's mobile number (10-digit Indian mobile number).
+            appointment_type (str): Type of appointment (regular, emergency, or followup).
             date (str): Appointment date in YYYY-MM-DD format.
             time (str): Appointment time in HH:MM:SS format.
             notes (str, optional): Additional notes about the appointment.
@@ -162,10 +173,10 @@ class DatabaseManager:
         
         try:
             cursor.execute('''
-                INSERT INTO appointments (name, email, appointment_type, appointment_date, 
+                INSERT INTO appointments (name, mobile_number, appointment_type, appointment_date, 
                                        appointment_time, notes)
                 VALUES (?, ?, ?, ?, ?, ?)
-            ''', (name, email, appointment_type, date, time, notes))
+            ''', (name, mobile_number, appointment_type, date, time, notes))
             
             appointment_id = cursor.lastrowid
             conn.commit()
@@ -196,10 +207,14 @@ class DatabaseManager:
             List[Dict]: List of appointment records for the date.
         """
         conn = sqlite3.connect(self.db_path)
+        # Use row_factory to get column names
+        conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         
         cursor.execute('''
-            SELECT * FROM appointments 
+            SELECT id, name, mobile_number, appointment_type, appointment_date, 
+                   appointment_time, status, created_at, notes
+            FROM appointments 
             WHERE appointment_date = ? AND status != 'cancelled'
             ORDER BY appointment_time
         ''', (date,))
@@ -207,15 +222,15 @@ class DatabaseManager:
         appointments = []
         for row in cursor.fetchall():
             appointments.append({
-                "id": row[0],
-                "name": row[1],
-                "email": row[2],
-                "appointment_type": row[3],
-                "appointment_date": row[4],
-                "appointment_time": row[5],
-                "status": row[6],
-                "created_at": row[7],
-                "notes": row[8]
+                "id": row["id"],
+                "name": row["name"],
+                "mobile_number": row["mobile_number"],
+                "appointment_type": row["appointment_type"],
+                "appointment_date": row["appointment_date"],
+                "appointment_time": row["appointment_time"],
+                "status": row["status"],
+                "created_at": row["created_at"],
+                "notes": row["notes"] if row["notes"] else ""
             })
         
         conn.close()
@@ -226,14 +241,14 @@ class DatabaseManager:
         Update an existing appointment in the database.
         Args:
             appointment_id (int): The ID of the appointment to update.
-            **fields: Fields to update (name, email, appointment_type, appointment_date, appointment_time, status, notes).
+            **fields: Fields to update (name, mobile_number, appointment_type, appointment_date, appointment_time, status, notes).
         Returns:
             Dict: Response dictionary containing:
                 - success (bool): Whether the operation was successful
                 - message (str): Success or error message
                 - error (str, optional): Error details if operation failed
         """
-        allowed_fields = {"name", "email", "appointment_type", "appointment_date", "appointment_time", "status", "notes"}
+        allowed_fields = {"name", "mobile_number", "appointment_type", "appointment_date", "appointment_time", "status", "notes"}
         update_fields = {k: v for k, v in fields.items() if k in allowed_fields}
         if not update_fields:
             return {"success": False, "message": "No valid fields to update."}

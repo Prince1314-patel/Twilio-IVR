@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import re
 
 from langgraph.prebuilt import create_react_agent
 from langgraph_supervisor import create_supervisor
@@ -27,6 +28,53 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
 load_dotenv()
+
+def clean_agent_response(response: str) -> str:
+    """
+    Clean and sanitize agent response to remove markdown, special characters, and formatting.
+    
+    This function ensures the response is plain text suitable for text-to-speech engines.
+    
+    Args:
+        response (str): Raw agent response that may contain markdown or special formatting.
+        
+    Returns:
+        str: Clean plain text response.
+    """
+    if not response:
+        return response
+    
+    # Remove markdown formatting
+    # Remove bold/italic markers
+    response = re.sub(r'\*\*([^*]+)\*\*', r'\1', response)  # **bold**
+    response = re.sub(r'\*([^*]+)\*', r'\1', response)  # *italic*
+    response = re.sub(r'__([^_]+)__', r'\1', response)  # __bold__
+    response = re.sub(r'_([^_]+)_', r'\1', response)  # _italic_
+    
+    # Remove code blocks
+    response = re.sub(r'```[\s\S]*?```', '', response)  # ```code blocks```
+    response = re.sub(r'`([^`]+)`', r'\1', response)  # `inline code`
+    
+    # Remove markdown headers
+    response = re.sub(r'^#+\s*', '', response, flags=re.MULTILINE)
+    
+    # Remove markdown links [text](url) -> text
+    response = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', response)
+    
+    # Remove markdown lists markers
+    response = re.sub(r'^\s*[-*+]\s+', '', response, flags=re.MULTILINE)
+    response = re.sub(r'^\s*\d+\.\s+', '', response, flags=re.MULTILINE)
+    
+    # Remove special Unicode characters that might cause issues (zero-width spaces, etc.)
+    response = re.sub(r'[\u200B-\u200D\uFEFF]', '', response)  # Zero-width spaces
+    
+    # Normalize whitespace - replace multiple spaces/newlines with single space
+    response = re.sub(r'\s+', ' ', response)
+    
+    # Strip leading/trailing whitespace
+    response = response.strip()
+    
+    return response
 
 # In-memory conversation history for streaming sessions
 # Format: {session_id: [messages]}
@@ -93,11 +141,15 @@ def run_agentic_graph(messages: list, thread_id: str) -> str:
         if result and "messages" in result and result["messages"]:
             last_message = result["messages"][-1]
             if hasattr(last_message, 'content'):
-                return last_message.content
+                raw_response = last_message.content
             elif isinstance(last_message, dict) and 'content' in last_message:
-                return last_message['content']
+                raw_response = last_message['content']
             else:
                 return "I'm sorry, the agent returned an unexpected message format."
+            
+            # Clean the response to remove markdown and special characters
+            cleaned_response = clean_agent_response(str(raw_response))
+            return cleaned_response
         return "I'm sorry, I couldn't process your request right now (no messages in result)."
     except Exception as e:
         print(f"Error running agentic graph: {e}")
@@ -116,7 +168,7 @@ async def run_agentic_graph_streaming(user_text: str, session_id: str) -> str:
         session_id (str): Unique session identifier (typically call SID)
         
     Returns:
-        str: AI agent's response text in Hindi
+        str: AI agent's response text in Hinglish
         
     Raises:
         Exception: If agent processing fails
@@ -158,11 +210,14 @@ async def run_agentic_graph_streaming(user_text: str, session_id: str) -> str:
             
             # Extract content
             if hasattr(last_message, 'content'):
-                ai_response = last_message.content
+                raw_response = last_message.content
             elif isinstance(last_message, dict) and 'content' in last_message:
-                ai_response = last_message['content']
+                raw_response = last_message['content']
             else:
-                ai_response = "मुझे क्षमा करें, मैं आपकी बात समझ नहीं पाया। कृपया दोबारा कहें।"
+                raw_response = "Mujhe kshama karein, main aapki baat samajh nahi paya. Kripya dobara kahein."
+            
+            # Clean the response to remove markdown and special characters
+            ai_response = clean_agent_response(str(raw_response))
             
             # Add AI response to history
             ai_message = AIMessage(content=ai_response)
@@ -170,11 +225,11 @@ async def run_agentic_graph_streaming(user_text: str, session_id: str) -> str:
             
             return ai_response
         else:
-            error_msg = "मुझे क्षमा करें, मैं अभी आपकी बात नहीं समझ पाया। कृपया दोबारा कोशिश करें।"
+            error_msg = "Mujhe kshama karein, main abhi aapki baat nahi samajh paya. Kripya dobara koshish karein."
             return error_msg
             
     except Exception as e:
         print(f"Error running agentic graph for streaming: {e}")
-        error_msg = "एक अप्रत्याशित त्रुटि हुई। कृपया बाद में पुनः प्रयास करें।"
+        error_msg = "Ek apratyashit truti hui. Kripya baad mein punah prayas karein."
         return error_msg
 

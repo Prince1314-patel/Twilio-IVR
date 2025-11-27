@@ -58,32 +58,35 @@ class SarvamClient:
                 logger.error("Sarvam AI features will not work without SDK")
                 self.client = None
 
-    def text_to_speech(self, text: str, language_code: str = "hi-IN", speaker_gender: str = "Female") -> Optional[bytes]:
+    def text_to_speech(self, text: str, language_code: str = "hi-IN", speaker_gender: str = "Female", 
+                       pitch: float = 0, pace: float = 0.9, loudness: float = 1) -> Optional[bytes]:
         """
         Convert text to speech using Sarvam AI SDK.
+        
+        Args:
+            text (str): Text to convert to speech
+            language_code (str): Target language code (default: "hi-IN")
+            speaker_gender (str): Speaker gender - "Female" or "Male" (default: "Female")
+            pitch (float): Voice pitch adjustment (default: 0)
+            pace (float): Speech pace/speed (default: 0.9)
+            loudness (float): Voice loudness/volume (default: 1)
+            
+        Returns:
+            Optional[bytes]: Audio bytes in mulaw format, or None if synthesis fails
         """
         if not self.client:
             logger.error("Sarvam client not initialized")
             return None
             
         try:
-            # Map gender to speaker ID if needed, or let SDK handle defaults
-            # Based on docs, we might need specific speaker IDs.
-            # For now, we'll use the SDK's text_to_speech method.
-            # Assuming SDK has a method like this based on typical patterns.
-            # If SDK signature differs, we will adjust.
-            
-            # Note: The SDK documentation wasn't fully visible, so I'm inferring standard usage.
-            # Usually: client.text_to_speech.create(...) or similar.
-            # Let's assume a direct method for now or check available attributes if possible.
-            # Given the search result showed `client = SarvamAI(api_key=...)`, 
-            # let's try to use the likely method.
-            
             # According to Sarvam AI docs: client.text_to_speech.convert(...)
             response = self.client.text_to_speech.convert(
                 text=text,  # Single text string, not array
                 target_language_code=language_code,
                 speaker="anushka" if speaker_gender == "Female" else "pavithra",
+                pitch=pitch,
+                pace=pace,
+                loudness=loudness,
                 speech_sample_rate=8000,
                 output_audio_codec="mulaw",  # Parameter name is output_audio_codec
                 model="bulbul:v2",  # Use v2, not v1
@@ -401,7 +404,8 @@ class SarvamClient:
                 except Exception as cleanup_error:
                     logger.warning(f"Failed to cleanup temp file: {cleanup_error}")
 
-    async def streaming_tts(self, text: str) -> Optional[bytes]:
+    async def streaming_tts(self, text: str, pitch: float = 0, pace: float = 0.9, 
+                            loudness: float = 1) -> Optional[bytes]:
         """
         Convert text to speech using Sarvam TTS SDK.
         
@@ -410,6 +414,9 @@ class SarvamClient:
         
         Args:
             text (str): Text to convert to speech (Hindi)
+            pitch (float): Voice pitch adjustment (default: 0)
+            pace (float): Speech pace/speed (default: 0.9)
+            loudness (float): Voice loudness/volume (default: 1)
             
         Returns:
             Optional[bytes]: Mulaw-encoded audio bytes at 8 kHz, or None if synthesis fails
@@ -440,9 +447,13 @@ class SarvamClient:
                         text=text,
                         target_language_code="hi-IN",
                         speaker="anushka",
+                        pitch=pitch,
+                        pace=pace,
+                        loudness=loudness,
                         speech_sample_rate=8000,
                         output_audio_codec="mulaw",  # For Twilio mulaw format
-                        model="bulbul:v2"  # Use v2, not v1
+                        model="bulbul:v2",  # Use v2, not v1
+                        enable_preprocessing=True
                     )
                 )
                 
@@ -487,9 +498,13 @@ class SarvamClient:
                 "text": text,
                 "target_language_code": "hi-IN",
                 "speaker": "anushka",
+                "pitch": pitch,
+                "pace": pace,
+                "loudness": loudness,
                 "speech_sample_rate": 8000,
                 "audio_format": "mulaw",
-                "model": "bulbul:v2"
+                "model": "bulbul:v2",
+                "enable_preprocessing": True
             }
             
             # Sarvam API uses 'api-subscription-key' header, not 'Authorization: Bearer'

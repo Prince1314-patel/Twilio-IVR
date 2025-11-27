@@ -77,20 +77,23 @@ def validate_time(time_str):
     except ValueError:
         return False, "Time must be in HH:MM:SS format."
 
-def validate_email(email):
+def validate_mobile_number(mobile_number):
     """
-    Validate that the email is in a standard email format.
+    Validate that the mobile number is a valid 10-digit Indian mobile number.
 
     Args:
-        email (str): The email address to validate.
+        mobile_number (str): The mobile number to validate.
 
     Returns:
         Tuple[bool, str]: (True, "") if valid, (False, error message) otherwise.
     """
-    pattern = r"^[\w\.-]+@[\w\.-]+\.\w+$"
-    if re.match(pattern, email):
+    # Remove any spaces, dashes, or plus signs
+    cleaned = re.sub(r'[\s\-+]', '', str(mobile_number))
+    # Check if it's a 10-digit number starting with 6-9 (Indian mobile number format)
+    pattern = r"^[6-9]\d{9}$"
+    if re.match(pattern, cleaned):
         return True, ""
-    return False, "Invalid email format."
+    return False, "Invalid mobile number. Please provide a valid 10-digit Indian mobile number."
 
 def validate_name(name):
     """
@@ -118,7 +121,7 @@ def validate_appointment_type(appointment_type):
     Returns:
         Tuple[bool, str]: (True, "") if valid, (False, error message) otherwise.
     """
-    allowed_types = ["telephonic", "virtual"]
+    allowed_types = ["regular", "emergency", "followup"]
     if appointment_type.lower() in allowed_types:
         return True, ""
     return False, f"Appointment type must be one of: {', '.join(allowed_types)}."
@@ -214,24 +217,23 @@ def get_next_closest_slots(date, requested_time, max_slots=5):
     except Exception:
         return slots[:max_slots]
 
-def mask_email(email):
+def mask_mobile_number(mobile_number):
     """
-    Mask the email address for privacy, showing only the first and last character before the @.
+    Mask the mobile number for privacy, showing only first 2 and last 2 digits.
 
     Args:
-        email (str): The email address to mask.
+        mobile_number (str): The mobile number to mask.
 
     Returns:
-        str: Masked email address.
+        str: Masked mobile number.
     """
-    if not email or '@' not in email:
-        return email
-    name, domain = email.split('@', 1)
-    if len(name) <= 2:
-        masked = name[0] + '*' * (len(name)-1)
-    else:
-        masked = name[0] + '*' * (len(name)-2) + name[-1]
-    return masked + '@' + domain
+    if not mobile_number:
+        return mobile_number
+    # Remove any spaces, dashes, or plus signs
+    cleaned = re.sub(r'[\s\-+]', '', str(mobile_number))
+    if len(cleaned) < 4:
+        return '*' * len(cleaned)
+    return cleaned[:2] + '*' * (len(cleaned) - 4) + cleaned[-2:]
 
 @tool
 def check_appointment_availability(date: str, time: str) -> str:
@@ -291,30 +293,31 @@ def check_appointment_availability(date: str, time: str) -> str:
         return f"Error checking availability: {str(e)}"
 
 @tool
-def create_appointment_in_db(name: str, email: str, appointment_type: str, 
+def create_appointment_in_db(name: str, mobile_number: str, appointment_type: str, 
                            date: str, time: str, notes: str = "") -> str:
     """
     Create a new appointment in the database with the provided details.
 
     Args:
         name (str): Client's full name.
-        email (str): Client's email address.
-        appointment_type (str): Type of appointment (e.g., telephonic, virtual).
+        mobile_number (str): Client's mobile number (10-digit Indian mobile number).
+        appointment_type (str): Type of appointment (regular, emergency, or followup).
         date (str): Appointment date in YYYY-MM-DD format.
         time (str): Appointment time in HH:MM:SS format.
-        notes (str, optional): Additional notes about the appointment.
+        notes (str, optional): Additional notes about the appointment (symptoms). 
+                                MUST be in English - agent should translate from Hindi/Hinglish before calling this tool.
 
     Returns:
         str: Success or error message.
     """
-    log_input = {'name': name, 'email': mask_email(email), 'appointment_type': appointment_type, 'date': date, 'time': time, 'notes': notes}
+    log_input = {'name': name, 'mobile_number': mask_mobile_number(mobile_number), 'appointment_type': appointment_type, 'date': date, 'time': time, 'notes': notes}
     logger.info(f"Tool: create_appointment_in_db | Input: {log_input}")
     # Input validation
     valid, msg = validate_name(name)
     if not valid:
         logger.warning(f"Tool: create_appointment_in_db | Validation failed: {msg}")
         return msg
-    valid, msg = validate_email(email)
+    valid, msg = validate_mobile_number(mobile_number)
     if not valid:
         logger.warning(f"Tool: create_appointment_in_db | Validation failed: {msg}")
         return msg
@@ -356,7 +359,7 @@ def create_appointment_in_db(name: str, email: str, appointment_type: str,
             logger.info(f"Tool: create_appointment_in_db | Result: {result}")
             return result
     try:
-        result = db_manager.create_appointment(name, email, appointment_type, date, time, notes)
+        result = db_manager.create_appointment(name, mobile_number, appointment_type, date, time, notes)
         if result["success"]:
             msg = f"Appointment created successfully with ID: {result['appointment_id']}"
             logger.info(f"Tool: create_appointment_in_db | Result: {msg}")
@@ -411,22 +414,22 @@ def get_available_slots_for_date(date: str) -> str:
         return f"Error getting available slots: {str(e)}"
 
 @tool
-def update_appointment_in_db(appointment_id: int, name: str = None, email: str = None, appointment_type: str = None, date: str = None, time: str = None, status: str = None, notes: str = None) -> str:
+def update_appointment_in_db(appointment_id: int, name: str = None, mobile_number: str = None, appointment_type: str = None, date: str = None, time: str = None, status: str = None, notes: str = None) -> str:
     """
     Update an existing appointment in the database. Only provided fields will be updated.
     Args:
         appointment_id (int): The ID of the appointment to update.
         name (str, optional): New name.
-        email (str, optional): New email.
+        mobile_number (str, optional): New mobile number.
         appointment_type (str, optional): New appointment type.
         date (str, optional): New appointment date (YYYY-MM-DD).
         time (str, optional): New appointment time (HH:MM:SS).
         status (str, optional): New status.
-        notes (str, optional): New notes.
+        notes (str, optional): New notes (symptoms). MUST be in English - agent should translate from Hindi/Hinglish before calling this tool.
     Returns:
         str: Success or error message.
     """
-    log_input = {'appointment_id': appointment_id, 'name': name, 'email': mask_email(email) if email else None, 'appointment_type': appointment_type, 'date': date, 'time': time, 'status': status, 'notes': notes}
+    log_input = {'appointment_id': appointment_id, 'name': name, 'mobile_number': mask_mobile_number(mobile_number) if mobile_number else None, 'appointment_type': appointment_type, 'date': date, 'time': time, 'status': status, 'notes': notes}
     logger.info(f"Tool: update_appointment_in_db | Input: {log_input}")
     if not isinstance(appointment_id, int) or appointment_id <= 0:
         return "Invalid appointment ID."
@@ -436,11 +439,11 @@ def update_appointment_in_db(appointment_id: int, name: str = None, email: str =
         if not valid:
             return msg
         update_fields['name'] = name
-    if email is not None:
-        valid, msg = validate_email(email)
+    if mobile_number is not None:
+        valid, msg = validate_mobile_number(mobile_number)
         if not valid:
             return msg
-        update_fields['email'] = email
+        update_fields['mobile_number'] = mobile_number
     if appointment_type is not None:
         valid, msg = validate_appointment_type(appointment_type)
         if not valid:
