@@ -8,9 +8,8 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, History } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
 import { useSessionManagement } from '@/hooks/useSession';
-import { useChat } from '@/store/context';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,7 +24,6 @@ import {
 
 export function QuickActions() {
   const { startNewSession } = useSessionManagement();
-  const { messages } = useChat();
   const [isStartingNewSession, setIsStartingNewSession] = useState(false);
 
   const handleNewSession = async () => {
@@ -67,19 +65,6 @@ export function QuickActions() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-
-        <Button
-          variant="outline"
-          className="w-full justify-start"
-          disabled={messages.length === 0}
-          onClick={() => {
-            // Could open a dialog to show full history
-            console.log('Chat history:', messages);
-          }}
-        >
-          <History className="mr-2 h-4 w-4" />
-          View Chat History ({messages.length})
-        </Button>
       </CardContent>
     </Card>
   );
