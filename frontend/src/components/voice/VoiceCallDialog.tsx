@@ -1,8 +1,8 @@
 /**
- * Voice Call Panel Component
+ * Voice Call Dialog Component
  * ==========================
  * 
- * Button that opens a dialog for initiating voice calls.
+ * Dialog component for initiating voice calls (reusable, without trigger button).
  */
 
 import React, { useState } from 'react';
@@ -19,12 +19,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 
-export function VoiceCallPanel() {
+interface VoiceCallDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function VoiceCallDialog({ open, onOpenChange }: VoiceCallDialogProps) {
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
   const { initiateVoiceCall, isInitiating, error, clearError } = useVoiceCallInitiate();
 
   const handleInitiateCall = async () => {
@@ -35,15 +38,15 @@ export function VoiceCallPanel() {
     const success = await initiateVoiceCall(phoneNumber);
     if (success) {
       setPhoneNumber('');
-      setIsOpen(false);
+      onOpenChange(false);
     }
   };
 
   const isValid = validatePhoneNumber(phoneNumber);
 
-  const handleOpenChange = (open: boolean) => {
-    setIsOpen(open);
-    if (!open) {
+  const handleOpenChange = (newOpen: boolean) => {
+    onOpenChange(newOpen);
+    if (!newOpen) {
       // Clear error and phone number when dialog closes
       clearError();
       setPhoneNumber('');
@@ -51,13 +54,7 @@ export function VoiceCallPanel() {
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button size="lg" className="w-full">
-          <Phone className="mr-2 h-4 w-4" />
-          Get Voice Call
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Initiate Voice Call</DialogTitle>

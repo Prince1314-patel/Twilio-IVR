@@ -5,7 +5,8 @@
  * Axios instance configuration and API client setup.
  */
 
-import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios from 'axios';
+import type { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { API_BASE_URL } from '@/utils/constants';
 import type { ApiError } from '@/types/api';
 

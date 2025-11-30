@@ -8,9 +8,10 @@
 import React, { useState, KeyboardEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Loader2 } from 'lucide-react';
+import { Send, Loader2, Phone } from 'lucide-react';
 import { cn } from '@/utils';
 import { CHAT_MESSAGE_MAX_LENGTH } from '@/utils/constants';
+import { VoiceCallDialog } from '@/components/voice/VoiceCallDialog';
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
@@ -20,6 +21,7 @@ interface ChatInputProps {
 
 export function ChatInput({ onSendMessage, isLoading = false, disabled = false }: ChatInputProps) {
   const [message, setMessage] = useState('');
+  const [isCallDialogOpen, setIsCallDialogOpen] = useState(false);
 
   const handleSend = () => {
     if (!message.trim() || isLoading || disabled) return;
@@ -64,6 +66,19 @@ export function ChatInput({ onSendMessage, isLoading = false, disabled = false }
             </span>
           )}
         </div>
+        <Button
+          size="icon"
+          className="h-10 w-10"
+          variant="outline"
+          disabled={isLoading || disabled}
+          onClick={() => setIsCallDialogOpen(true)}
+        >
+          <Phone className="h-4 w-4" />
+        </Button>
+        <VoiceCallDialog
+          open={isCallDialogOpen}
+          onOpenChange={setIsCallDialogOpen}
+        />
         <Button
           onClick={handleSend}
           disabled={!message.trim() || isLoading || disabled}
