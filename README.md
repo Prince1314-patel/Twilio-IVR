@@ -12,9 +12,11 @@ This project is an AI Voice IVR (Interactive Voice Response) system designed to 
 *   **Business Hour & Slot Granularity Enforcement**: Appointments can only be booked within defined business hours and at specific time granularities (e.g., on the hour or half-hour).
 *   **Twilio Integration**: Handles incoming and outgoing calls, converting speech to text and text to speech for a natural voice interaction.
 *   **Scalable Web Server**: Built with FastAPI and Uvicorn for high-performance asynchronous operations.
+*   **Modern Web Interface**: Beautiful React-based frontend with real-time chat, voice call initiation, and responsive design.
 
 ### Technologies Used
 
+**Backend:**
 *   **Python**: The core programming language.
 *   **FastAPI**: A modern, fast (high-performance) web framework for building APIs.
 *   **Uvicorn**: An ASGI server for running FastAPI applications.
@@ -29,6 +31,16 @@ This project is an AI Voice IVR (Interactive Voice Response) system designed to 
 *   **`numpy`**: For numerical operations.
 *   **`websockets`**: For WebSocket communication.
 *   **`torch` & `torchaudio`**: Potentially for advanced audio processing or TTS.
+
+**Frontend:**
+*   **React**: Modern UI library for building interactive user interfaces.
+*   **TypeScript**: Type-safe JavaScript for better code quality.
+*   **Vite**: Fast build tool and development server.
+*   **Tailwind CSS**: Utility-first CSS framework for rapid UI development.
+*   **shadcn/ui**: Beautiful, accessible React components built on Radix UI.
+*   **Framer Motion**: Animation library for smooth transitions.
+*   **Axios**: HTTP client for API communication.
+*   **date-fns**: Date utility library.
 
 ### Setup and Installation
 
@@ -47,13 +59,14 @@ This project is an AI Voice IVR (Interactive Voice Response) system designed to 
     source venv/bin/activate
     ```
 
-3.  **Install dependencies**:
+3.  **Install backend dependencies**:
     ```bash
+    cd backend
     pip install -r requirements.txt
     ```
 
 4.  **Environment Variables**:
-    Create a `.env` file in the root directory of the project and add the following:
+    Create a `.env` file in the `backend/` directory (or root directory) and add the following:
     ```
     TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
     TWILIO_AUTH_TOKEN=your_twilio_auth_token
@@ -64,52 +77,95 @@ This project is an AI Voice IVR (Interactive Voice Response) system designed to 
     Replace the placeholder values with your actual Twilio, Groq, and OpenAI API credentials.
 
 5.  **Database Setup**:
-    The `db_tool` module uses an in-memory SQLite database for demonstration purposes. For persistent storage, you would need to modify `db_tool/db_manager.py` to connect to a more robust database (e.g., PostgreSQL, MySQL).
+    The `backend/db_tool` module uses an in-memory SQLite database for demonstration purposes. For persistent storage, you would need to modify `backend/db_tool/db_manager.py` to connect to a more robust database (e.g., PostgreSQL, MySQL).
 
 6.  **Ngrok (or similar tunneling service)**:
     Twilio needs a publicly accessible URL to send incoming call webhooks. You can use `ngrok` for this.
-    Download `ngrok.exe` (or the appropriate version for your OS) and place it in the project root.
+    Download `ngrok.exe` (or the appropriate version for your OS) and place it in the project root or `backend/` directory.
     Run ngrok to expose your local server:
     ```bash
-    .
-grok.exe http 8000
+    ngrok http 8000
     ```
     Copy the `https` forwarding URL provided by ngrok (e.g., `https://your-ngrok-url.ngrok-free.app`). You will use this URL in your Twilio webhook configuration.
 
 ### Usage
 
-1.  **Start the FastAPI server**:
-    ```bash
-    python answer_phone.py
-    ```
-    The server will run on `http://0.0.0.0:8000`.
+#### Backend Setup
 
-2.  **Configure Twilio Webhook**:
+1.  **Navigate to backend directory and start the FastAPI server**:
+    ```bash
+    cd backend
+    python -m uvicorn app.main:app --reload
+    # Or
+    python app/main.py
+    ```
+    The server will run on `http://localhost:8000`.
+
+#### Frontend Setup
+
+1.  **Navigate to the frontend directory**:
+    ```bash
+    cd frontend
+    ```
+
+2.  **Install dependencies** (if not already installed):
+    ```bash
+    npm install
+    ```
+
+3.  **Start the development server**:
+    ```bash
+    npm run dev
+    ```
+    The frontend will run on `http://localhost:3000` by default.
+
+4.  **Build for production**:
+    ```bash
+    npm run build
+    ```
+
+5.  **Preview production build**:
+    ```bash
+    npm run preview
+    ```
+
+#### Twilio Configuration
+
+6.  **Configure Twilio Webhook**:
     *   Go to your Twilio Phone Numbers dashboard.
     *   Select the Twilio phone number you want to use for this application.
-    *   Under the "Voice & Fax" section, configure the "A CALL COMES IN" webhook to "Webhook" and paste your ngrok `https` forwarding URL followed by `/incoming-call`.
-        Example: `https://your-ngrok-url.ngrok-free.app/incoming-call`
+    *   Under the "Voice & Fax" section, configure the "A CALL COMES IN" webhook to "Webhook" and paste your ngrok `https` forwarding URL followed by `/api/voice/incoming-call`.
+        Example: `https://your-ngrok-url.ngrok-free.app/api/voice/incoming-call`
     *   Set the HTTP method to `POST`.
 
-3.  **Make an Outbound Call (Optional)**:
-    You can initiate an outbound call using the `make_call.py` script.
-    **Before running `make_call.py`**:
-    *   Ensure the `url` in `make_call.py` is updated with your current ngrok `https` forwarding URL.
-    *   Update the `to` and `from_` phone numbers in `make_call.py` to your desired recipient and your Twilio phone number, respectively.
-    ```python
-    # make_call.py
-    call = client.calls.create(
-        to="+918200467191",  # Replace with the recipient's phone number
-        from_="+19122145317", # Replace with your Twilio phone number
-        url="https://d328ae9a1a6b.ngrok-free.app/incoming-call" # Replace with your ngrok URL
-    )
-    ```
-    Then run:
+7.  **Make an Outbound Call (Optional)**:
+    You can initiate an outbound call via the web interface (recommended) or using the API directly.
+    **Using the Web Interface:**
+    *   Open `http://localhost:3000` in your browser
+    *   Enter your phone number in the voice call panel
+    *   Click "Get Voice Call" to initiate a call
+    
+    **Using the API directly:**
+    *   Make a POST request to `http://localhost:8000/api/voice/initiate-call`
+    *   Include a JSON body with `phone_number` field
+    *   Example:
     ```bash
-    python make_call.py
+    curl -X POST http://localhost:8000/api/voice/initiate-call \
+      -H "Content-Type: application/json" \
+      -d '{"phone_number": "+1234567890"}'
     ```
 
-4.  **Interact with the AI**:
+#### Interacting with the Application
+
+8.  **Interact with the AI**:
+
+    **Via Web Interface:**
+    *   Open `http://localhost:3000` in your browser.
+    *   Use the chat interface to interact with the AI assistant.
+    *   Type messages to schedule, check, update, or cancel appointments.
+    *   Click "Get Voice Call" to initiate a phone call to your number.
+
+    **Via Voice Call:**
     *   Call your Twilio phone number.
     *   The AI assistant will greet you and prompt you to state your request regarding appointments.
     *   Speak naturally to schedule, reschedule, or cancel appointments.
@@ -118,24 +174,115 @@ grok.exe http 8000
 
 ```
 .
-├── .gitignore
-├── answer_phone.py             # FastAPI application, handles Twilio webhooks and AI conversation
-├── make_call.py                # Script to initiate outbound calls via Twilio
-├── ngrok.exe                   # Ngrok executable for local tunneling
-├── Readme.md                   # Project documentation
-├── requirements.txt            # Python dependencies
-├── run_agent_cli.py            # (Optional) CLI for agent interaction (if implemented)
-├── __pycache__/                # Python cache files
-├── .git/                       # Git version control
-├── agentic_graph/
-│   ├── __init__.py
-│   ├── agent_graph.py          # Defines the LangGraph agent and its tools
-│   ├── prompts.py              # Prompts used by the agent
-│   └── __pycache__/
-├── db_tool/
-│   ├── db_manager.py           # Manages database operations (SQLite in-memory by default)
-│   ├── db_tools.py             # LangChain-compatible tools for database interaction
-│   └── __pycache__/
-└── venv/                       # Python virtual environment
+├── README.md                           # Project documentation
+├── appointments.db                     # SQLite database file
+├── appointment_tools.log              # Application logs
+├── backend/                            # Backend application
+│   ├── requirements.txt               # Python backend dependencies
+│   ├── streamlit_app.py               # Legacy Streamlit app (optional)
+│   ├── twilio_pipeline_app.py         # Twilio pipeline Streamlit app
+│   ├── test_agent_streamlit.py        # Agent testing script
+│   ├── test_sarvam_flow.py            # Sarvam integration test
+│   ├── PROJECT_OVERVIEW_PROMPT.md     # Project overview documentation
+│   ├── SARVAM_AI_DOCUMENTATION.md     # Sarvam AI documentation
+│   ├── app/                           # FastAPI backend application
+│   │   ├── main.py                    # FastAPI application entry point
+│   │   ├── routers/                   # API route handlers
+│   │   │   ├── chat.py                # Chat API endpoints
+│   │   │   ├── voice.py               # Voice call API endpoints
+│   │   │   └── voice_stream.py        # Voice streaming endpoints
+│   │   ├── core/                      # Core configuration and utilities
+│   │   │   ├── config.py              # Application configuration
+│   │   │   ├── sarvam_client.py       # Sarvam AI client
+│   │   │   └── websocket_manager.py   # WebSocket connection manager
+│   │   └── audio/                     # Audio processing utilities
+│   │       └── audio_utils.py         # Audio manipulation functions
+│   ├── agentic_graph/                 # AI agent implementation
+│   │   ├── agent_graph.py             # LangGraph agent setup
+│   │   └── prompts.py                 # AI agent prompts
+│   ├── db_tool/                       # Database layer
+│   │   ├── db_manager.py              # Database operations
+│   │   └── db_tools.py                # LangChain-compatible tools
+│   └── archive/                       # Archived legacy files
+│       └── legacy_files/              # Old implementation files
+│           ├── answer_phone.py
+│           ├── legacy_make_call.py
+│           ├── make_call.py
+│           ├── run_agent_cli.py
+│           ├── start_app.py
+│           └── test_integration.py
+├── frontend/                          # React frontend application
+│   ├── package.json                   # Frontend dependencies
+│   ├── package-lock.json              # Dependency lock file
+│   ├── vite.config.ts                 # Vite configuration
+│   ├── tsconfig.json                  # TypeScript configuration
+│   ├── tsconfig.node.json             # TypeScript config for Node
+│   ├── tailwind.config.js             # Tailwind CSS configuration
+│   ├── postcss.config.js              # PostCSS configuration
+│   ├── components.json                # shadcn/ui configuration
+│   ├── index.html                     # HTML entry point
+│   ├── public/                        # Static assets
+│   │   └── vite.svg
+│   └── src/                           # Source code
+│       ├── main.tsx                   # React application entry point
+│       ├── App.tsx                    # Main app component
+│       ├── components/                # React components
+│       │   ├── ui/                    # shadcn/ui base components
+│       │   │   ├── alert.tsx
+│       │   │   ├── alert-dialog.tsx
+│       │   │   ├── avatar.tsx
+│       │   │   ├── badge.tsx
+│       │   │   ├── button.tsx
+│       │   │   ├── card.tsx
+│       │   │   ├── input.tsx
+│       │   │   ├── scroll-area.tsx
+│       │   │   ├── separator.tsx
+│       │   │   ├── skeleton.tsx
+│       │   │   └── sonner.tsx
+│       │   ├── chat/                  # Chat interface components
+│       │   │   ├── ChatInterface.tsx
+│       │   │   ├── ChatInput.tsx
+│       │   │   └── MessageBubble.tsx
+│       │   ├── voice/                 # Voice call components
+│       │   │   ├── VoiceCallPanel.tsx
+│       │   │   ├── CallStatusCard.tsx
+│       │   │   └── PhoneInput.tsx
+│       │   ├── sidebar/               # Sidebar components
+│       │   │   ├── Sidebar.tsx
+│       │   │   ├── CallStatusSection.tsx
+│       │   │   ├── QuickActions.tsx
+│       │   │   └── AboutSection.tsx
+│       │   └── layout/                # Layout components
+│       │       ├── Header.tsx
+│       │       └── Footer.tsx
+│       ├── services/                  # API service layer
+│       │   ├── api.ts                 # Axios client configuration
+│       │   ├── chat.ts                # Chat API service
+│       │   ├── voice.ts               # Voice call API service
+│       │   └── websocket.ts           # WebSocket client
+│       ├── hooks/                     # Custom React hooks
+│       │   ├── useChat.ts
+│       │   ├── useVoiceCall.ts
+│       │   ├── useSession.ts
+│       │   └── useWebSocket.ts
+│       ├── store/                     # State management
+│       │   └── context/               # React Context providers
+│       │       ├── AppContext.tsx     # App-level state
+│       │       ├── ChatContext.tsx    # Chat state
+│       │       ├── VoiceContext.tsx   # Voice call state
+│       │       └── index.ts           # Context exports
+│       ├── types/                     # TypeScript type definitions
+│       │   ├── api.ts                 # API types
+│       │   ├── chat.ts                # Chat types
+│       │   └── voice.ts               # Voice types
+│       ├── utils/                     # Utility functions
+│       │   ├── constants.ts           # Application constants
+│       │   ├── helpers.ts             # Helper functions
+│       │   └── index.ts               # Utility exports
+│       ├── lib/                       # Library utilities
+│       │   └── utils.ts               # shadcn/ui utilities
+│       └── styles/                    # Global styles
+│           └── globals.css            # Tailwind CSS and global styles
+└── venv/                              # Python virtual environment (optional)
 
 ```

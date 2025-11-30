@@ -53,8 +53,8 @@ sarvam_client = SarvamClient()
 streaming_sessions: Dict[str, dict] = {}
 
 # Audio buffer configuration
-MIN_BUFFER_DURATION_MS = 1500  # Minimum 1.5 seconds before processing
-MAX_BUFFER_DURATION_MS = 20000  # Maximum 20 seconds buffer (allows longer speech without cutting off)
+MIN_BUFFER_DURATION_MS = 500  # Minimum 1.5 seconds before processing
+MAX_BUFFER_DURATION_MS = 10000  # Maximum 20 seconds buffer (allows longer speech without cutting off)
 SILENCE_DURATION_MS = 3000  # Wait 3 seconds of silence (no speech activity) before processing
 SAMPLE_RATE_8K = 8000
 BYTES_PER_SAMPLE_8K = 1  # mulaw is 1 byte per sample
