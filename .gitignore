@@ -1,0 +1,69 @@
+# -----------------------------------------------------------------------------
+# Python
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+*.cover
+
+# -----------------------------------------------------------------------------
+# Environment & virtual envs
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+venv/
+.venv/
+env/
+
+# -----------------------------------------------------------------------------
+# IDE & OS
+# -----------------------------------------------------------------------------
+.idea/
+.vscode/
+.kiro
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# -----------------------------------------------------------------------------
+# Logs
+# -----------------------------------------------------------------------------
+logs/
+*.log
+backend/logs/
+backend/ai_agent.log
+backend/application.log
+backend/error.log
+appointment_tools.log
+
+# -----------------------------------------------------------------------------
+# Data & runtime
+# -----------------------------------------------------------------------------
+appointments.db
+backend/call.json
+
+# -----------------------------------------------------------------------------
+# Project-specific / tools
+# -----------------------------------------------------------------------------
+ngrok.exe
+.hypothesis
+.kombai/
+
+# Local / temporary docs (optional: remove if you want these tracked)
+Case Study_ Healthcare AI Assistant (1).docx
+Healthcare_AI_Assistant_Analysis.md
