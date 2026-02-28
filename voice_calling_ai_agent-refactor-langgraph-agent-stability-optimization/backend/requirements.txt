@@ -1,0 +1,55 @@
+# FastAPI and Web Framework
+fastapi
+uvicorn[standard]
+websockets
+python-multipart
+
+# Streamlit for Web Interface
+streamlit
+audio-recorder-streamlit
+
+# Twilio for Voice Calling
+twilio
+
+# AI and Language Models
+langchain
+langchain-core
+langchain-groq
+langchain-openai
+langgraph
+langgraph-supervisor
+groq
+openai
+langgraph-checkpoint-postgres
+
+# Utilities
+python-dotenv
+tzdata
+pytz
+psycopg_pool
+
+# HTTP Client
+requests
+httpx
+
+# Pydantic for Data Validation
+pydantic
+
+# Sarvam AI SDK
+sarvamai
+
+# LiveKit Agents
+livekit-agents
+livekit-plugins-langchain
+livekit-plugins-sarvam
+
+# Testing
+hypothesis
+pytest
+pytest-asyncio
+
+# Database
+sqlalchemy
+psycopg2-binary
+
+phonenumbers
