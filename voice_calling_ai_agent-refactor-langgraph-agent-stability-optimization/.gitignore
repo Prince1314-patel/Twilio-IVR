@@ -1,0 +1,22 @@
+__pycache__
+ngrok.exe
+__pycache__/answer_phone.cpython-311.pyc
+agentic_graph/__pycache__/agent_graph.cpython-311.pyc
+.env
+venv
+.venv
+appointments.db
+appointment_tools.log
+.idea/
+Case Study_ Healthcare AI Assistant (1).docx
+Healthcare_AI_Assistant_Analysis.md
+.kiro
+.hypothesis
+.vscode
+backend/logs/
+logs/
+backend/ai_agent.log
+backend/application.log
+backend/error.log
+backend/call.json
+.kombai/
